@@ -1,0 +1,1180 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Assistant IA - Flask & Ollama</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='dist/css/style.css') }}">
+</head>
+
+<body class="bg-gray-100 min-h-screen text-gray-900">
+
+<div class="flex min-h-screen">
+
+    <!-- BARRE LATÉRALE -->
+    <aside class="w-72 shrink-0 bg-gray-900 text-white p-5 flex flex-col">
+        <h1 class="text-2xl font-bold mb-2">Assistant IA</h1>
+
+        <p class="text-xs text-gray-400 mb-6">
+            Flask + SQLite + Ollama
+        </p>
+
+        <button
+            id="newChat"
+            type="button"
+            class="w-full bg-blue-600 hover:bg-blue-700
+                   text-white p-3 rounded-lg mb-6 font-medium">
+            + Nouvelle conversation
+        </button>
+
+        <h2 class="text-sm text-gray-400 mb-3">
+            Historique des conversations
+        </h2>
+
+        <div id="conversationList"
+             class="space-y-2 overflow-y-auto flex-1">
+        </div>
+    </aside>
+
+    <!-- CONTENU PRINCIPAL -->
+    <main class="flex-1 min-w-0 flex flex-col p-4 md:p-6 h-screen">
+
+        <header class="flex flex-wrap justify-between
+                       items-center gap-3 mb-5">
+
+            <div>
+                <h2 class="text-2xl font-bold">
+                    Conversation
+                </h2>
+
+                <p id="conversationInfo"
+                   class="text-sm text-gray-500 mt-1">
+                    Aucune conversation sélectionnée
+                </p>
+            </div>
+
+            <div>
+                <label for="domaine"
+                       class="block text-sm font-medium mb-1">
+                    Domaine de spécialisation
+                </label>
+
+                <select
+                    id="domaine"
+                    class="border border-gray-300 rounded-lg
+                           p-2 bg-white text-gray-900">
+
+                    <option value="general">Général</option>
+                    <option value="informatique">Informatique</option>
+                    <option value="finance">Finance</option>
+                    <option value="data">Analyse de données</option>
+                    <option value="autre">Autre</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- BOUTONS D'EXPORTATION -->
+        <div class="flex flex-wrap gap-3 mb-4">
+
+            <button type="button"
+                    class="export-button bg-gray-800 hover:bg-gray-700
+                           text-white px-4 py-2 rounded-lg"
+                    onclick="telecharger('txt')">
+                Export TXT
+            </button>
+
+            <button type="button"
+                    class="export-button bg-gray-800 hover:bg-gray-700
+                           text-white px-4 py-2 rounded-lg"
+                    onclick="telecharger('json')">
+                Export JSON
+            </button>
+
+            <button type="button"
+                    class="export-button bg-red-600 hover:bg-red-700
+                           text-white px-4 py-2 rounded-lg"
+                    onclick="telecharger('pdf')">
+                Export PDF
+            </button>
+
+            <button type="button"
+                    id="resumeButton"
+                    class="export-button bg-purple-600 hover:bg-purple-700
+                           text-white px-4 py-2 rounded-lg"
+                    onclick="telechargerResume()">
+                Résumé PDF (IA)
+            </button>
+
+            <button type="button"
+                    id="deleteChat"
+                    class="bg-red-100 hover:bg-red-200
+                           text-red-700 px-4 py-2 rounded-lg
+                           ml-auto"
+                    onclick="supprimerConversation()">
+                Supprimer la conversation
+            </button>
+
+        </div>
+
+<!-- PERFORMANCES DE LA CONVERSATION -->
+<div class="mb-4">
+  <button id="statsButton" type="button" onclick="afficherStatistiques()"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg">
+    Statistiques de performance
+  </button>
+  <div id="statsPanel" class="hidden bg-white border rounded-xl p-4 mt-3">
+    <div id="statsContent" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+  </div>
+</div>
+
+<!-- ANALYSE ET GOUVERNANCE DES DONNÉES -->
+<div class="mb-4">
+
+    <button
+        id="toggleAnalyse"
+        type="button"
+        class="bg-emerald-600 hover:bg-emerald-700
+               text-white px-4 py-2 rounded-lg">
+        Analyse des données
+    </button>
+
+    <div id="analysePanel"
+         class="hidden mt-4 bg-white border border-gray-200
+                rounded-xl p-5 shadow-sm">
+
+        <h3 class="text-xl font-bold mb-2">
+            Analyse et qualité des données
+        </h3>
+
+        <p class="text-sm text-gray-500 mb-4">
+            Importez un fichier CSV, Excel ou une base SQLite pour analyser
+            la qualité, la complétude et les anomalies des données.
+        </p>
+
+        <form id="analyseForm" class="flex flex-wrap gap-3">
+            <input
+                type="file"
+                id="fichierData"
+                accept=".csv,.xlsx"
+                required
+                class="border rounded-lg p-2 flex-1 min-w-0">
+
+            <button
+                id="analyseButton"
+                type="submit"
+                class="bg-blue-600 hover:bg-blue-700
+                       text-white px-5 py-2 rounded-lg">
+                Analyser
+            </button>
+        </form>
+
+        <p id="analyseStatus"
+           class="text-sm text-gray-600 mt-3">
+        </p>
+
+
+        <!-- IMPORTATION SQLITE -->
+        <div class="mt-6 border-t border-gray-200 pt-5">
+            <h4 class="text-lg font-bold mb-3">Importer une base SQLite</h4>
+            <form id="sqliteForm" class="flex flex-wrap gap-3">
+                <input id="sqliteFile" type="file" accept=".db,.sqlite,.sqlite3"
+                       class="border rounded-lg p-2 flex-1 min-w-0" required>
+                <select id="sqliteTable" class="hidden border rounded-lg p-2 bg-white"
+                        aria-label="Choisir une table SQLite"></select>
+                <button id="sqliteButton" type="submit"
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg">
+                    Charger la base
+                </button>
+            </form>
+            <p id="sqliteStatus" role="status" class="text-sm text-gray-600 mt-3"></p>
+        </div>
+
+        <!-- INDICATEURS -->
+        <div id="analyseResultats" class="hidden mt-5">
+
+            <div id="analyseKpis"
+                 class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            </div>
+
+            <h4 class="text-lg font-bold mt-6 mb-3">
+                Qualité des colonnes
+            </h4>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-3">Colonne</th>
+                            <th class="p-3">Type</th>
+                            <th class="p-3">Manquantes</th>
+                            <th class="p-3">Complétude</th>
+                            <th class="p-3">Anomalies</th>
+                        </tr>
+                    </thead>
+                    <tbody id="colonnesTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+        <!-- DOCUMENTS SOURCES -->
+        <div class="mb-4">
+          <button id="toggleSources" type="button" class="bg-teal-700 text-white rounded-lg px-4 py-2">Sources et références</button>
+          <div id="sourcesPanel" class="hidden mt-3 bg-white border rounded-xl p-4 max-h-72 overflow-y-auto">
+            <form id="sourceForm" class="flex gap-2 flex-wrap">
+              <input id="sourceFichier" type="file" accept=".txt,.md,.pdf" required class="border rounded p-2 flex-1" />
+              <button type="submit" class="bg-blue-600 text-white rounded px-4 py-2">Importer</button>
+            </form>
+            <p id="sourceStatus" role="status" class="text-sm text-gray-600 mt-2"></p>
+            <p class="text-xs text-gray-500 mt-2">Cochez les sources autorisées pour les prochaines réponses. Sans sélection, Ollama répond sans consulter les documents.</p>
+            <div id="sourcesList" class="space-y-2 mt-3"></div>
+            <label class="block mt-3 text-sm">Nombre maximal d'extraits consultés :
+              <select id="nbExtraits" class="border rounded p-1"><option>2</option><option selected>4</option><option>6</option><option>8</option></select>
+            </label>
+            <label class="block mt-2 text-sm">Passages affichés par source :
+              <select id="nbPassages" class="border rounded p-1"><option>3</option><option selected>5</option><option>10</option><option>20</option></select>
+            </label>
+            <div id="sourceDetails" class="mt-3 space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- ZONE DES MESSAGES -->
+        <section
+            id="messages"
+            aria-live="polite"
+            class="flex-1 min-h-0 bg-white rounded-xl
+                   border border-gray-200 p-5
+                   overflow-y-auto space-y-4 shadow-sm">
+
+            <p class="text-gray-500 text-center mt-12">
+                Sélectionnez ou créez une conversation pour commencer.
+            </p>
+
+        </section>
+
+        <!-- SAISIE -->
+        <form id="messageForm" class="flex gap-3 mt-5">
+
+            <input
+                id="messageInput"
+                type="text"
+                placeholder="Posez votre question à l'assistant..."
+                class="flex-1 min-w-0 border border-gray-300
+                       rounded-lg p-3 outline-none
+                       focus:ring-2 focus:ring-blue-500"
+                autocomplete="off"
+                required>
+
+            <button
+                id="sendButton"
+                type="submit"
+                class="bg-blue-600 hover:bg-blue-700
+                       disabled:bg-gray-400 disabled:cursor-not-allowed
+                       text-white px-6 rounded-lg font-medium">
+                Envoyer
+            </button>
+
+        </form>
+
+        <!-- STATUT ET PERFORMANCES -->
+        <div class="mt-3 flex flex-wrap justify-between gap-2">
+
+            <p id="status"
+               role="status"
+               class="text-sm text-gray-600">
+            </p>
+
+            <p id="performance"
+               class="text-sm text-gray-500">
+            </p>
+
+        </div>
+
+    </main>
+</div>
+
+<script>
+"use strict";
+
+// =====================================================
+// 1. VARIABLES GLOBALES
+// =====================================================
+
+let currentConversationId = null;
+let currentDomaine = "general";
+let isGenerating = false;
+let isBusy = false;
+
+
+// =====================================================
+// 2. COMMUNICATION AVEC FLASK
+// =====================================================
+
+async function api(url, options = {}) {
+    let response;
+
+    try {
+        response = await fetch(url, options);
+    } catch (error) {
+        throw new Error(
+            "Impossible de contacter Flask. Vérifiez que le serveur fonctionne."
+        );
+    }
+
+    let data;
+
+    try {
+        data = await response.json();
+    } catch (error) {
+        throw new Error("Réponse invalide reçue du serveur.");
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            data.error || `Erreur HTTP ${response.status}`
+        );
+    }
+
+    return data;
+}
+
+
+// =====================================================
+// 3. AFFICHAGE DES STATUTS
+// =====================================================
+
+function showStatus(message, isError = false) {
+    const status = document.getElementById("status");
+
+    status.textContent = message;
+
+    status.className = isError
+        ? "text-sm text-red-600 font-medium"
+        : "text-sm text-gray-600";
+}
+
+function showPerformance(result) {
+    const performance = document.getElementById("performance");
+
+    const entree = Number(result.tokens_entree || 0);
+    const sortie = Number(result.tokens_sortie || 0);
+    const total = entree + sortie;
+
+    performance.textContent =
+        `Temps : ${result.temps_reponse}s | ` +
+        `Tokens : ${total} ` +
+        `(entrée : ${entree}, sortie : ${sortie})`;
+}
+
+function setGenerating(value) {
+    isGenerating = value;
+
+    document.getElementById("sendButton").disabled = value;
+    document.getElementById("messageInput").disabled = value;
+    document.getElementById("sendButton").textContent =
+        value ? "Génération..." : "Envoyer";
+
+    updateControls();
+}
+
+function updateControls() {
+    const disabled = isGenerating || isBusy;
+
+    document.getElementById("newChat").disabled = disabled;
+    document.getElementById("deleteChat").disabled =
+        disabled || !currentConversationId;
+
+    document.getElementById("domaine").disabled = disabled;
+
+    document.querySelectorAll(".conversation-button")
+        .forEach(button => {
+            button.disabled = disabled;
+        });
+
+    document.querySelectorAll(".export-button")
+        .forEach(button => {
+            button.disabled = disabled || !currentConversationId;
+        });
+}
+
+
+// =====================================================
+// 4. AFFICHAGE DES MESSAGES
+// =====================================================
+
+function addMessageToScreen(role, content, messageId = null, selectedNote = null, sources = []) {
+    const container = document.getElementById("messages");
+    const bubble = document.createElement("div");
+
+    bubble.textContent = content;
+
+    if (role === "user") {
+        bubble.className =
+            "bg-blue-100 text-gray-900 p-4 rounded-xl " +
+            "ml-auto max-w-2xl w-fit whitespace-pre-wrap break-words";
+    } else {
+        bubble.className =
+            "bg-gray-100 text-gray-900 p-4 rounded-xl " +
+            "mr-auto max-w-2xl w-fit whitespace-pre-wrap " +
+            "break-words border border-gray-200";
+    }
+
+    container.appendChild(bubble);
+    if (role === "assistant" && sources.length) {
+        const refs = document.createElement("details");
+        refs.className = "bg-teal-50 border rounded p-3 mb-2";
+        const titre = document.createElement("summary");
+        titre.textContent = `Passages transmis au modèle (${sources.length})`;
+        refs.appendChild(titre);
+        sources.forEach((source, index) => {
+            const p = document.createElement("p");
+            p.className = "text-xs whitespace-pre-wrap border-t mt-2 pt-2";
+            p.textContent = `[S${index+1}] ${source.nom || source.filename} — ${source.localisation}\n${source.contenu}`;
+            refs.appendChild(p);
+        });
+        container.appendChild(refs);
+    }
+
+    // Les évaluations sont uniquement proposées pour les réponses du modèle.
+    if (role === "assistant" && messageId !== null) {
+        const evaluations = document.createElement("div");
+        evaluations.className = "flex flex-wrap gap-2 mb-3";
+        const notes = [
+            { note: 3, texte: "Satisfaisante", couleur: "bg-green-600" },
+            { note: 2, texte: "Moyenne", couleur: "bg-yellow-600" },
+            { note: 1, texte: "Insuffisante", couleur: "bg-red-600" }
+        ];
+        for (const item of notes) {
+            const bouton = document.createElement("button");
+            bouton.type = "button";
+            bouton.textContent = item.texte;
+            bouton.className = `${item.couleur} text-white text-xs px-3 py-2 rounded-lg`;
+            bouton.style.opacity = (selectedNote === null || selectedNote === item.note) ? "1" : "0.45";
+            bouton.addEventListener("click", async () => {
+                try {
+                    await api("/api/evaluations", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({message_id: messageId, note: item.note})
+                    });
+                    for (const child of evaluations.children) {
+                        child.style.opacity = child === bouton ? "1" : "0.45";
+                    }
+                    showStatus(`Évaluation enregistrée : ${item.texte}`);
+                } catch (error) {
+                    showStatus(error.message, true);
+                }
+            });
+            evaluations.appendChild(bouton);
+        }
+        container.appendChild(evaluations);
+    }
+    container.scrollTop = container.scrollHeight;
+}
+
+function showEmptyConversation(message =
+    "Commencez par poser une question à l'assistant.") {
+
+    const container = document.getElementById("messages");
+    container.replaceChildren();
+
+    const paragraph = document.createElement("p");
+    paragraph.textContent = message;
+    paragraph.className = "text-gray-500 text-center mt-12";
+
+    container.appendChild(paragraph);
+}
+
+
+// =====================================================
+// 5. HISTORIQUE DES CONVERSATIONS
+// =====================================================
+
+async function loadConversations() {
+    const conversations = await api("/api/conversations");
+    const list = document.getElementById("conversationList");
+
+    list.replaceChildren();
+
+    for (const conversation of conversations) {
+        const button = document.createElement("button");
+
+        button.type = "button";
+        button.textContent =
+            `${conversation.titre} (#${conversation.id})`;
+
+        button.className =
+            "conversation-button block w-full text-left " +
+            "p-3 rounded-lg bg-gray-800 hover:bg-gray-700 " +
+            "text-white text-sm transition-colors " +
+            (conversation.id === currentConversationId
+                ? "ring-2 ring-blue-400"
+                : "");
+
+        button.addEventListener("click", async () => {
+            if (isGenerating || isBusy) return;
+
+            try {
+                await openConversation(
+                    conversation.id,
+                    conversation.domaine
+                );
+
+                await loadConversations();
+            } catch (error) {
+                showStatus(error.message, true);
+            }
+        });
+
+        list.appendChild(button);
+    }
+
+    updateControls();
+    return conversations;
+}
+
+
+// =====================================================
+// 6. OUVRIR UNE CONVERSATION
+// =====================================================
+
+async function openConversation(id, domaine) {
+    const messages = await api(
+        `/api/conversations/${id}/messages`
+    );
+
+    currentConversationId = id;
+    currentDomaine = domaine;
+
+    document.getElementById("domaine").value = domaine;
+
+    document.getElementById("conversationInfo").textContent =
+        `Conversation #${id} | Domaine : ${domaine}`;
+
+    const container = document.getElementById("messages");
+    container.replaceChildren();
+
+    if (messages.length === 0) {
+        showEmptyConversation();
+    } else {
+        for (const message of messages) {
+            addMessageToScreen(
+                message.role,
+                message.contenu,
+                message.id,
+                message.note,
+                message.sources || []
+            );
+        }
+    }
+
+    document.getElementById("performance").textContent = "";
+
+    await chargerSources();
+    showStatus(`Conversation #${id} ouverte.`);
+    updateControls();
+}
+
+
+// =====================================================
+// 7. NOUVELLE CONVERSATION
+// =====================================================
+
+document.getElementById("newChat").addEventListener(
+    "click", async () => {
+        if (isGenerating || isBusy) return;
+
+        isBusy = true;
+        updateControls();
+
+        try {
+            const domaine =
+                document.getElementById("domaine").value;
+
+            const conversation = await api(
+                "/api/conversations",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ domaine })
+                }
+            );
+
+            await openConversation(
+                conversation.id,
+                conversation.domaine
+            );
+
+            await loadConversations();
+
+            document.getElementById("messageInput").focus();
+
+        } catch (error) {
+            showStatus(error.message, true);
+        } finally {
+            isBusy = false;
+            updateControls();
+        }
+    }
+);
+
+
+// =====================================================
+// 8. ENVOI DES MESSAGES À OLLAMA
+// =====================================================
+
+document.getElementById("messageForm").addEventListener(
+    "submit", async (event) => {
+        event.preventDefault();
+
+        if (isGenerating || isBusy) return;
+
+        if (!currentConversationId) {
+            showStatus("Créez d'abord une conversation.", true);
+            return;
+        }
+
+        const input = document.getElementById("messageInput");
+        const contenu = input.value.trim();
+
+        if (!contenu) return;
+
+        const conversationId = currentConversationId;
+        const domaine = currentDomaine;
+
+        setGenerating(true);
+        showStatus("L'assistant IA réfléchit...");
+
+        try {
+            const result = await api("/api/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    conversation_id: conversationId,
+                    message: contenu,
+                    source_ids: Array.from(document.querySelectorAll(".source-checkbox:checked"), c => Number(c.value)),
+                    nb_extraits: Number(document.getElementById("nbExtraits").value)
+                })
+            });
+
+            // Recharger les messages depuis SQLite
+            await openConversation(conversationId, domaine);
+
+            input.value = "";
+
+            showPerformance(result);
+            showStatus("Réponse générée avec succès.");
+
+        } catch (error) {
+            showStatus("Erreur : " + error.message, true);
+        } finally {
+            setGenerating(false);
+            input.focus();
+        }
+    }
+);
+
+
+// =====================================================
+// 9. DOMAINE DE SPÉCIALISATION
+// =====================================================
+
+document.getElementById("domaine").addEventListener(
+    "change", () => {
+        const domaine = document.getElementById("domaine").value;
+
+        showStatus(
+            `Domaine "${domaine}" sélectionné. ` +
+            "Cliquez sur Nouvelle conversation pour l'appliquer."
+        );
+    }
+);
+
+
+// =====================================================
+// 10. TÉLÉCHARGEMENT DES FICHIERS
+// =====================================================
+
+async function enregistrerFichier(url, nomFichier) {
+    let response;
+
+    try {
+        response = await fetch(url);
+    } catch (error) {
+        throw new Error("Impossible de contacter Flask.");
+    }
+
+    if (!response.ok) {
+        const erreur = await response.json().catch(() => ({}));
+
+        throw new Error(
+            erreur.error || "Le téléchargement a échoué."
+        );
+    }
+
+    const blob = await response.blob();
+    const urlTemporaire = URL.createObjectURL(blob);
+
+    const lien = document.createElement("a");
+    lien.href = urlTemporaire;
+    lien.download = nomFichier;
+
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+
+    setTimeout(() => {
+        URL.revokeObjectURL(urlTemporaire);
+    }, 1000);
+}
+
+
+// =====================================================
+// 11. EXPORT TXT, JSON ET PDF
+// =====================================================
+
+async function telecharger(format) {
+    if (!currentConversationId || isGenerating || isBusy) {
+        showStatus("Sélectionnez une conversation disponible.", true);
+        return;
+    }
+
+    if (!["txt", "json", "pdf"].includes(format)) {
+        showStatus("Format d'exportation invalide.", true);
+        return;
+    }
+
+    isBusy = true;
+    updateControls();
+
+    const conversationId = currentConversationId;
+
+    try {
+        showStatus(`Préparation de l'export ${format.toUpperCase()}...`);
+
+        await enregistrerFichier(
+            `/api/conversations/${conversationId}/export/${format}`,
+            `conversation_${conversationId}.${format}`
+        );
+
+        showStatus(
+            `Conversation exportée au format ${format.toUpperCase()}.`
+        );
+    } catch (error) {
+        showStatus(error.message, true);
+    } finally {
+        isBusy = false;
+        updateControls();
+    }
+}
+
+
+// =====================================================
+// 12. GÉNÉRATION DU RÉSUMÉ PDF AVEC OLLAMA
+// =====================================================
+
+async function telechargerResume() {
+    if (!currentConversationId || isGenerating || isBusy) {
+        showStatus("Sélectionnez une conversation disponible.", true);
+        return;
+    }
+
+    const conversationId = currentConversationId;
+    const bouton = document.getElementById("resumeButton");
+
+    isBusy = true;
+    updateControls();
+
+    bouton.textContent = "Génération du résumé...";
+
+    try {
+        showStatus(
+            "Ollama génère le résumé PDF. Cette opération peut prendre du temps."
+        );
+
+        await enregistrerFichier(
+            `/api/conversations/${conversationId}/resume/pdf`,
+            `resume_${conversationId}.pdf`
+        );
+
+        showStatus("Résumé PDF téléchargé avec succès.");
+
+    } catch (error) {
+        showStatus("Erreur : " + error.message, true);
+
+    } finally {
+        bouton.textContent = "Résumé PDF (IA)";
+        isBusy = false;
+        updateControls();
+    }
+}
+
+
+// =====================================================
+// 13. SUPPRESSION D'UNE CONVERSATION
+// =====================================================
+
+async function supprimerConversation() {
+    if (!currentConversationId || isGenerating || isBusy) {
+        return;
+    }
+
+    const conversationId = currentConversationId;
+
+    const confirmation = confirm(
+        `Voulez-vous vraiment supprimer la conversation #${conversationId} ?\n\n` +
+        "Cette action supprimera également tous ses messages."
+    );
+
+    if (!confirmation) return;
+
+    isBusy = true;
+    updateControls();
+
+    try {
+        await api(
+            `/api/conversations/${conversationId}`,
+            { method: "DELETE" }
+        );
+
+        currentConversationId = null;
+        currentDomaine = "general";
+
+        document.getElementById("conversationInfo").textContent =
+            "Aucune conversation sélectionnée";
+
+        document.getElementById("domaine").value = "general";
+        document.getElementById("performance").textContent = "";
+
+        const conversations = await loadConversations();
+
+        if (conversations.length > 0) {
+            await openConversation(
+                conversations[0].id,
+                conversations[0].domaine
+            );
+        } else {
+            showEmptyConversation(
+                "Aucune conversation. Créez-en une nouvelle."
+            );
+        }
+
+        await loadConversations();
+        showStatus("Conversation supprimée avec succès.");
+
+    } catch (error) {
+        showStatus(error.message, true);
+
+    } finally {
+        isBusy = false;
+        updateControls();
+    }
+}
+
+
+// =====================================================
+// 14. INITIALISATION AUTOMATIQUE
+// =====================================================
+
+async function initialiserApplication() {
+    try {
+        const conversations = await loadConversations();
+
+        if (conversations.length > 0) {
+            const derniere = conversations[0];
+
+            await openConversation(
+                derniere.id,
+                derniere.domaine
+            );
+
+            await loadConversations();
+
+        } else {
+            showEmptyConversation(
+                "Aucune conversation. Cliquez sur Nouvelle conversation."
+            );
+
+            showStatus("Créez une conversation pour commencer.");
+        }
+
+    } catch (error) {
+        showStatus(
+            "Erreur d'initialisation : " + error.message,
+            true
+        );
+    }
+}
+
+// =====================================================
+// 19. SOURCES DOCUMENTAIRES ET PASSAGES
+// =====================================================
+document.getElementById("toggleSources").addEventListener("click", () => {
+    document.getElementById("sourcesPanel").classList.toggle("hidden");
+});
+
+async function chargerSources() {
+    const liste = document.getElementById("sourcesList");
+    liste.replaceChildren();
+    if (!currentConversationId) return;
+    const anciennes = new Set(Array.from(document.querySelectorAll(".source-checkbox:checked"), e => Number(e.value)));
+    const sources = await api(`/api/conversations/${currentConversationId}/sources`);
+    for (const source of sources) {
+        const ligne = document.createElement("div");
+        ligne.className = "flex flex-wrap items-center gap-2 border rounded p-2";
+        const coche = document.createElement("input");
+        coche.type = "checkbox";
+        coche.value = source.id;
+        coche.className = "source-checkbox";
+        coche.checked = anciennes.has(source.id);
+        const nom = document.createElement("span");
+        nom.className = "text-sm flex-1 break-all";
+        nom.textContent = source.filename;
+        const voir = document.createElement("button");
+        voir.type = "button";
+        voir.textContent = "Voir les extraits";
+        voir.className = "text-blue-700 text-xs underline";
+        voir.addEventListener("click", () => afficherExtraits(source));
+        const effacer = document.createElement("button");
+        effacer.type = "button";
+        effacer.textContent = "Supprimer";
+        effacer.className = "text-red-700 text-xs underline";
+        effacer.addEventListener("click", async () => {
+            if (!confirm(`Supprimer ${source.filename} ?`)) return;
+            try {
+                await api(`/api/conversations/${currentConversationId}/sources/${source.id}`, {method:"DELETE"});
+                await chargerSources();
+                document.getElementById("sourceDetails").replaceChildren();
+            } catch (error) { document.getElementById("sourceStatus").textContent = error.message; }
+        });
+        ligne.append(coche,nom,voir,effacer);
+        liste.appendChild(ligne);
+    }
+}
+
+async function afficherExtraits(source) {
+    const endroit = document.getElementById("sourceDetails");
+    endroit.replaceChildren();
+    try {
+        const limite = Number(document.getElementById("nbPassages").value);
+        const extraits = await api(`/api/conversations/${currentConversationId}/sources/${source.id}/extraits?limite=${limite}`);
+        const titre = document.createElement("h4");
+        titre.textContent = `Extraits : ${source.filename}`;
+        titre.className = "font-bold";
+        endroit.appendChild(titre);
+        for (const item of extraits) {
+            const bloc = document.createElement("div");
+            bloc.className = "bg-gray-50 rounded p-2 text-xs whitespace-pre-wrap";
+            bloc.textContent = `${item.localisation}\n${item.contenu}`;
+            endroit.appendChild(bloc);
+        }
+    } catch(error) { document.getElementById("sourceStatus").textContent = error.message; }
+}
+
+document.getElementById("sourceForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!currentConversationId) {
+        document.getElementById("sourceStatus").textContent = "Créez d'abord une conversation.";
+        return;
+    }
+    const input = document.getElementById("sourceFichier");
+    if (!input.files.length) return;
+    const data = new FormData();
+    data.append("fichier", input.files[0]);
+    const status = document.getElementById("sourceStatus");
+    status.textContent = "Import en cours...";
+    try {
+        const result = await api(`/api/conversations/${currentConversationId}/sources`, {method:"POST", body:data});
+        await chargerSources();
+        const coche = Array.from(document.querySelectorAll(".source-checkbox")).find(el=> Number(el.value)===result.id);
+        if (coche) coche.checked = true;
+        status.textContent = `${result.filename} : ${result.nb_extraits} extrait(s) importé(s).`;
+        input.value = "";
+    } catch(error) { status.textContent = "Erreur : " + error.message; }
+});
+
+initialiserApplication();
+
+
+// =====================================================
+// 15. ANALYSE CSV / EXCEL
+// =====================================================
+
+document.getElementById("toggleAnalyse").addEventListener("click", () => {
+    document.getElementById("analysePanel").classList.toggle("hidden");
+});
+
+function ajouterIndicateur(titre, valeur) {
+    const carte = document.createElement("div");
+    carte.className = "bg-gray-100 rounded-lg p-4";
+    const libelle = document.createElement("p");
+    libelle.className = "text-sm text-gray-500";
+    libelle.textContent = titre;
+    const nombre = document.createElement("p");
+    nombre.className = "text-2xl font-bold mt-2";
+    nombre.textContent = valeur;
+    carte.append(libelle, nombre);
+    document.getElementById("analyseKpis").appendChild(carte);
+}
+
+function afficherAnalyse(resultat) {
+    document.getElementById("analyseResultats").classList.remove("hidden");
+    document.getElementById("analyseKpis").replaceChildren();
+    ajouterIndicateur("Nombre de lignes", resultat.nb_lignes);
+    ajouterIndicateur("Nombre de colonnes", resultat.nb_colonnes);
+    ajouterIndicateur("Valeurs manquantes", resultat.total_manquantes);
+    ajouterIndicateur("Doublons", resultat.nb_doublons);
+    ajouterIndicateur("Complétude", resultat.taux_completude + " %");
+    ajouterIndicateur("Score indicatif de qualité", resultat.score_qualite + " %");
+
+    const tableau = document.getElementById("colonnesTable");
+    tableau.replaceChildren();
+    for (const colonne of resultat.colonnes) {
+        const ligne = document.createElement("tr");
+        ligne.className = "border-b";
+        const valeurs = [
+            colonne.nom, colonne.type, colonne.valeurs_manquantes,
+            colonne.taux_completude + " %",
+            resultat.anomalies[colonne.nom] ?? 0
+        ];
+        for (const valeur of valeurs) {
+            const cellule = document.createElement("td");
+            cellule.className = "p-3";
+            cellule.textContent = String(valeur);
+            ligne.appendChild(cellule);
+        }
+        tableau.appendChild(ligne);
+    }
+}
+
+document.getElementById("analyseForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fichier = document.getElementById("fichierData").files[0];
+    const statut = document.getElementById("analyseStatus");
+    const bouton = document.getElementById("analyseButton");
+    if (!fichier) return;
+    if (fichier.size > 10 * 1024 * 1024) {
+        statut.textContent = "Le fichier dépasse 10 Mo.";
+        return;
+    }
+    const donnees = new FormData();
+    donnees.append("fichier", fichier);
+    bouton.disabled = true;
+    statut.textContent = "Analyse en cours...";
+    try {
+        const resultat = await api("/api/analyse", { method: "POST", body: donnees });
+        afficherAnalyse(resultat);
+        statut.textContent = "Analyse CSV/Excel terminée.";
+    } catch (error) {
+        statut.textContent = "Erreur : " + error.message;
+    } finally {
+        bouton.disabled = false;
+    }
+});
+
+// =====================================================
+// 16. ANALYSE D'UNE BASE SQLITE
+// =====================================================
+
+const sqliteForm = document.getElementById("sqliteForm");
+const sqliteFile = document.getElementById("sqliteFile");
+const sqliteTable = document.getElementById("sqliteTable");
+const sqliteButton = document.getElementById("sqliteButton");
+const sqliteStatus = document.getElementById("sqliteStatus");
+
+sqliteFile.addEventListener("change", () => {
+    sqliteTable.replaceChildren();
+    sqliteTable.classList.add("hidden");
+    sqliteButton.textContent = "Charger la base";
+    sqliteStatus.textContent = "";
+});
+
+sqliteForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fichier = sqliteFile.files[0];
+    if (!fichier) return;
+    if (fichier.size > 10 * 1024 * 1024) {
+        sqliteStatus.textContent = "La base dépasse 10 Mo.";
+        return;
+    }
+    const donnees = new FormData();
+    donnees.append("fichier", fichier);
+    if (!sqliteTable.classList.contains("hidden") && sqliteTable.value) {
+        donnees.append("table", sqliteTable.value);
+    }
+    sqliteButton.disabled = true;
+    sqliteStatus.textContent = "Analyse en cours...";
+    try {
+        const resultat = await api("/api/analyse/sqlite", {
+            method: "POST", body: donnees
+        });
+        if (resultat.selection_requise) {
+            sqliteTable.replaceChildren();
+            for (const table of resultat.tables) {
+                const option = document.createElement("option");
+                option.value = table;
+                option.textContent = table;
+                sqliteTable.appendChild(option);
+            }
+            sqliteTable.classList.remove("hidden");
+            sqliteButton.textContent = "Analyser la table";
+            sqliteStatus.textContent =
+                `${resultat.tables.length} table(s) détectée(s). Sélectionnez une table.`;
+        } else {
+            afficherAnalyse(resultat.analyse);
+            sqliteStatus.textContent =
+                `Analyse de la table « ${resultat.table_analysee} » terminée.`;
+        }
+    } catch (error) {
+        sqliteStatus.textContent = "Erreur : " + error.message;
+    } finally {
+        sqliteButton.disabled = false;
+    }
+});
+
+// Tableau de bord des performances stockées dans SQLite.
+async function afficherStatistiques() {
+    if (!currentConversationId) {
+        showStatus("Sélectionnez une conversation.", true);
+        return;
+    }
+    try {
+        const stats = await api(`/api/conversations/${currentConversationId}/stats`);
+        const panel = document.getElementById("statsPanel");
+        const content = document.getElementById("statsContent");
+        content.replaceChildren();
+        const valeurs = [
+            ["Requêtes mesurées", stats.nb_requetes],
+            ["Temps moyen", (stats.temps_moyen ?? 0) + " s"],
+            ["Tokens entrée", stats.tokens_entree],
+            ["Tokens sortie", stats.tokens_sortie]
+        ];
+        for (const [titre, valeur] of valeurs) {
+            const carte = document.createElement("div");
+            carte.className = "bg-gray-100 rounded-lg p-4";
+            const t = document.createElement("p");
+            t.className = "text-sm text-gray-500";
+            t.textContent = titre;
+            const v = document.createElement("p");
+            v.className = "text-xl font-bold mt-2";
+            v.textContent = String(valeur);
+            carte.append(t, v);
+            content.appendChild(carte);
+        }
+        panel.classList.remove("hidden");
+    } catch(error) {
+        showStatus(error.message, true);
+    }
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,36 @@
+PROJECT-10 : Flask + Ollama + SQLite + analyse de donnees
+=========================================================
+
+IMPORTANT : Effectuer une copie de sauvegarde du projet initial avant de remplacer les fichiers.
+NE PAS supprimer conversations.db, pyproject.toml, poetry.lock, package.json ou node_modules.
+Ce paquet ne contient pas les donnees de votre base de conversations.
+
+1. Copier app.py, database.py, exports.py, data_analysis.py, sqlite_analysis.py
+   et sources.py dans C:\Users\hp\Downloads\PROJECT-10\.
+2. Copier templates\index.html dans PROJECT-10\templates\index.html.
+3. Copier static\css\input.css si necessaire.
+4. Dans PowerShell, depuis PROJECT-10 :
+   py -m poetry add requests fpdf2 pypdf "pandas==2.3.3" "numpy==2.3.3" "openpyxl==3.1.5"
+   py -m poetry run python database.py
+   py -m poetry run python app.py
+5. Deuxieme terminal :
+   npx @tailwindcss/cli -i ./static/css/input.css -o ./static/dist/css/style.css --watch
+6. Ollama doit etre actif avec le modele llama3.2 (ollama list).
+7. Ouvrir http://127.0.0.1:5000 et forcer l'actualisation avec Ctrl+F5.
+
+Fonctionnalites : conversations et historique, domaines, reponses locales Ollama,
+export TXT/JSON/PDF, resume PDF, CSV/Excel/SQLite, statistiques par conversation,
+evaluations 1/2/3 sauvegardees dans SQLite et retrouvees apres rechargement.
+Les statistiques de performances ne concernent que les nouvelles requetes.
+Fonctionnalité 10 intégrée : documents TXT, MD, PDF (avec texte extractible),
+choix des sources via cases à cocher, 2/4/6/8 passages maximaux par requête,
+affichage paginé des passages, stockage SQLite des passages transmis à Ollama,
+et consultation des passages associés aux réponses existantes.
+Les liens [S1], [S2] sont générés par le modèle et ne constituent pas une
+vérification automatique de l'exactitude de chaque affirmation. Les PDF
+scannés (images) ne sont pas pris en charge sans OCR.
+Ne téléversez que des documents fiables et non confidentiels dans ce TP local.
+
+Ce projet est un prototype local pour le TP ; ne pas le deployer publiquement
+sans authentification, isolation des imports SQLite, limitation des ressources
+et des protections supplementaires. Le debug Flask doit rester local.
